@@ -32,10 +32,13 @@ This pipeline has the capability to run either Illumina or Nanopore sequencing d
 - Users will direct the pipeline where fastq files are located by using the --fastq_dir parameter. Illumina and Nanopore data should not be run through the pipeline at the same time. 
 	- Illumina: 
 		- Paired-end (R1 and R2) or single-end reads.
+		- The pipeline generates consensus sequences using the following thresholds: minimum quality score of 30, depth of 5, and frequency of 0.25. Users can modify these settings in the illumina.config file. 	
 	- Nanopore: 
 		- Users must concatenate raw read files into a single fastq.gz file (one file per barcode). This can be done using the cat command. 
 		- Users have the option to include a sequence summary file, which should be placed in the ./summary directory and begin with {sequencing_summary_}*.txt. 
-
+		- The pipeline generates consensus sequences using the following thresholds: minimum quality score of 10, depth of 5, and frequency of 0.25. Users can modify these settings in the nanopore.config file. 	 
+		
+		
 ### Reference:
 
 This pipeline can utilize any reference genome from *Orbiviruses* with 10 segments or any segmented genome with 10 or fewer segments. The user must specify which reference file to use by using the parameter --reference. 
@@ -54,28 +57,28 @@ Within the chosen output directory, files will be organized into subfolders name
 	
 - Illumina 
 	- Quality Assessment: 
-		- FastQC - {sample.id}_fastqc.html in ./outdir/fastqc
-		- MultiQC - *_multiqc_report.html in ./outdir/multiqc 
-	- Best10 Reference: 
-		- {sample.id}_best10_reference.fa in ./outdir/identify 
-	- Consensus sequences: 
-		- ivar - {sample_id}.ivar_consensus.fasta in ./outdir/concatenate
-		- ViralConsensus - {sample_id}._new_draft_seq.fa in ./outdir/final
-	- Alignments: 
-		- to best10 reference: bowtie2 - {sample_id}.best10_refseq.sam or .bam in ./outdir/bowtie2
-		- to final consensus sequence: bowtie2 - {sample_id}.new_draft_seq.sam or .bam in ./outdir/bowtie2
+		- FastQC - *_fastqc.html in ./outdir/quality_assessment_illumina
+		- MultiQC - *_multiqc_report.html in ./outdir/quality_assessment_illumina 
+	- Preprocessed Reads: 
+		- trimmed, deduplicated fastq files - in ./outdir/illumina_preprocessing/trimmed_deduplicated_fastq|trimmed_fastq
+	- Best10 Reference & best10 alignment: 
+		- {sample.id}_best10_refseq.fa in ./outdir/best10_illumina 
+		- *_best10_alignment.bam in ./outdir/best10_illumina
+	- Consensus sequence & consensus alignment: 
+		- {sample_id}.viral_consensus.fasta in ./outdir/final_consensus_illumina
+		- {sample_id}.viral_consensus.bam in ./outdir/final_consensus_illumina
 			
 - Nanopore 
 	- Quality Assessment: 
-		- PycoQC - summary.html in ./outdir/pycoqc
-		- Nanoplot - NanoPlot-report.html in ./outdir/nanoplot
-	- Best10 Reference: 
-		- {sample.id}_best10_reference.fa in ./outdir/identify 
-	- Consensus sequence: 
-		- ViralConsensus - {sample_id}.new_draft_seqs.fa in ./outdir/final
-	- Alignments: 
-		- to best10 reference: minimap2 - {sample_id}.best10_refseq.sam or .bam in ./outdir/minimap2
-		- to final consensus sequence: minimap2 - {sample_id}.new_draft_seq.sam or .bam in ./outdir/minimap2
+		- PycoQC - summary.html in ./outdir/quality_assessment_nanopore
+		- Nanoplot - NanoPlot-report.html in ./outdir/quality_assessment_nanopore
+	- Best10 Reference & best10 alignment: 
+		- {sample.id}_best10_refseq.fa in ./outdir/best10_nanopore 
+		- *_best10_alignment.bam in ./outdir/best10_nanopore
+	- Consensus sequence & consensus alignment: 
+		- {sample_id}_viral_consensus.fasta in ./outdir/final_consensus_nanopore
+		- {sample_id}_viral_consensus.bam in ./outdir/final_consensus_nanopore
+		
 		
 ## Workflow Steps
 
@@ -85,7 +88,7 @@ Within the chosen output directory, files will be organized into subfolders name
 - Align input reads to large Orbi RefSeq : bowtie2 build & align 
 - Choose best 10 segments from initial alignment
 - Align input reads to best10 RefSeq : bowtie2 build & align 
-- Call variants & create consensus sequences: iVar & ViralConsensus
+- Call variants & create consensus sequences: ViralConsensus
 - Align input reads to final consensus sequence : bowtie2 build & align 
 
 ### Nanopore workflow 
@@ -98,9 +101,11 @@ Within the chosen output directory, files will be organized into subfolders name
 	
 These workflows take advantage of nf-core [modules](https://nf-co.re/modules) for many of these components and the overall [nf-core](https://nf-co.re/) design philosophy.
 
-The Illumina workflow takes advantage of the [Stenglein Lab Read Preprocessing Pipeline](https://github.com/stenglein-lab/read_preprocessing) and the [iVar](https://github.com/andersen-lab/ivar?tab=readme-ov-file) package. 
+The Illumina workflow takes advantage of the [Stenglein Lab Read Preprocessing Pipeline](https://github.com/stenglein-lab/read_preprocessing).
 
-The Nanopore workflow takes advantage of the [ViralConsensus](https://github.com/niemasd/ViralConsensus) and [Nanoplot](https://github.com/wdecoster/NanoPlot) tools. 
+The Nanopore workflow takes advantage of the [Nanoplot](https://github.com/wdecoster/NanoPlot) tool.
+
+Both workflows take advantage of the [ViralConsensus](https://github.com/niemasd/ViralConsensus) tool. 
 
 
 ## Running the Pipeline
@@ -134,12 +139,18 @@ The testing is successful if the pipeline completes all steps with no errors (No
 
 To test the illumina workflow: 
 ```
-nextflow run main.nf -profile test_illumina -resume
+nextflow run main.nf \
+  -resume \
+  -profile singularity,test_illumina \
+  --platform illumina 
 ```
 
 To test the nanopore workflow: 
 ```
-nextflow run main.nf -profile test_nanopore -resume
+nextflow run main.nf \
+  -resume \
+  -profile singularity,test_nanopore \
+  --platform nanopore 
 ```
 
 
